@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+                    <meta name="description" content="">
+                        <meta name="author" content="">
+                            <link rel="icon" href="./favicon.ico">
+                                
+                                <title>Registration</title>
+                                
+                                <!-- Bootstrap core CSS -->
+                                <link href="./css/bootstrap.min.css" rel="stylesheet">
+                                <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+                                <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+                                  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.2.18.min.js"></script>
+                                  <script id="facebook-jssdk" src="https://connect.facebook.net/en_US/all.js"></script>
+                                
+                                    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+                                    <link href="./assets/css/ie10-viewport-bug-workaround.css" rel="stylesheet">
+                                        
+                                        <!-- Just for debugging purposes. Don't actually copy these 2 lines! -->
+                                        <!--[if lt IE 9]><script src="../../assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
+                                        <script src="./assets/js/ie-emulation-modes-warning.js"></script>
+                                        
+                                        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+                                        <!--[if lt IE 9]>
+                                         <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+                                         <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+                                         <![endif]-->
+                                        
+                                        <!-- Custom styles for this template -->
+                                        <link href="carousel.css" rel="stylesheet">
+                                            </head>
+
+<body style="margin:4px; padding:70px">
+    <!-- NAVBAR
+     ================================================== -->
+     <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="homePage.html">BookHook</a>
+          </div>
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li class="active"><a href="homePage.html">Home</a></li>
+                <li><a href="loginPage.html">Login</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Profile <span class="caret"></span></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="profilePage.html">Main Profile</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+          <div id="navbar" class="navbar-collapse collapse">
+          </div><!--/.navbar-collapse -->
+        </div>
+      </nav>
+            <div class="container-fluid">
+                <h1>Register New User</h1>
+                <div id="alerts"></div>
+        
+                <div id="userForm" class="displaydiv">
+        
+                    <div>
+                        <label>Name:</label>
+                        <br>
+                        <input type="text" class="form-control" id="fullName">
+                        <br>
+                        <label>E-mail:</label>
+                        <br>
+                        <input type="text" class="form-control" id="email">
+                        <br>
+                    </div>
+                    <button id="submit" class="btn btn-success">Submit</button>
+        
+                </div>
+        
+        
+                <div id="addimg" style="display: none;" class="displaydiv">
+                    <input type="file" id="file-chooser" />
+                    <br><br>
+                    <button class="btn btn-success" id="upload-button" >Upload profile image</button>
+                </div>
+        
+                <div id="profileLink" style="display: none;" class="displaydiv">
+                    <h3>Your account has been created and image was uploaded...</h3>
+                    <br>
+                </div>
+        
+            </div>	
+            <script type="text/javascript">
+            var fbUserId;
+            var params;
+            var fullName;
+            var email;
+            var dynamodb = null;
+            var docClient = null;
+            var appId = '176760049623330'; //from facebook
+            var roleArn = 'arn:aws:iam::551057923516:role/311IAMfirstRole'; //from AWS IAM
+            var resultData = null;
+            var bucketName = 'cis311johnnyfirstbucket'; //CHANGE TO YOUR S3 BUCKET NAME
+            var bucket;
+            var username;
+                
+        
+            var fileChooser = document.getElementById('file-chooser');
+            var button = document.getElementById('upload-button');
+            
+        
+        
+        
+                //analyze and output the url parameters as a useful array to caller, based upon http://stackoverflow.com/a/26434126
+                function breakUpURLParameters(url) {
+                    //  create a link in the DOM and set its href
+                    var link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    console.log("path variable is " + url);
+        
+                    //  return an easy-to-use object that breaks apart the path
+                    return {
+                        host: link.hostname,  //  'example.com'
+                        port: link.port,      //  12345
+                        search: mapMaker(link.search),  //  {startIndex: 1, pageSize: 10}
+                        path: link.pathname,  //  '/blog/foo/bar'
+                        protocol: link.protocol   //  'http:'
+                    }
+                }
+        
+                function mapMaker(search, preserveDuplicates) {
+                    //  option to preserve duplicate keys (e.g. 'sort=name&sort=age')
+                    preserveDuplicates = preserveDuplicates || false;  //  disabled by default
+        
+                    var outputNoDupes = {};
+                    var returnableArray = [];  //  optional output array to preserve duplicate keys
+        
+                    //  sanity check
+                    if (!search) throw new Error('mapMaker: your search input param is misformed?');
+        
+                    //  remove ? character from your url (?foo=1&bar=2 -> 'foo=1&bar=2')
+                    search = search.split('?')[1];
+        
+                    //  split apart your keys into a useful array of key/value pairs ('foo=1&bar=2' -> ['foo=1', 'bar=2'])
+                    search = search.split('&');
+        
+                    //  separate keys from values (['foo=1', 'bar=2'] -> [{foo:1}, {bar:2}])
+                    //  then package as an array for your caller to use as variables
+                    returnableArray = search.map(function (keyval) {
+                        var out = {};
+                        keyval = keyval.split('=');
+                        out[keyval[0]] = keyval[1];
+                        outputNoDupes[keyval[0]] = keyval[1]; //  might as well do the no-dupe work too while we're in the loop
+                        return out;
+                    });
+        
+                    return (preserveDuplicates) ? returnableArray : outputNoDupes;
+                }//end of mapmaker
+        
+                document.getElementById('submit').onclick = function () {
+                
+                dynamodb = new AWS.DynamoDB({ region: 'us-west-2' });
+                docClient = new AWS.DynamoDB.DocumentClient({ service: dynamodb });
+                fullName = document.getElementById("fullName").value;
+
+                localStorage.setItem("username",  fullName = document.getElementById("fullName").value);
+                email = document.getElementById("email").value;
+                console.log("Full name: ", fullName);
+                console.log("E-mail: ", email);
+                params = {
+                    TableName: 'mp8Table',
+                    Item: {
+                        itemID: fullName,
+                        sortKey: 'new',
+                        email_: email
+                    }
+                };
+                docClient.put(params, function (err, data) {
+                    if (err) console.log(err);
+                    else {
+                        resultData = data;
+                        console.log(resultData);
+                        document.getElementById("userForm").style.display = "none";
+                        document.getElementById("addimg").style.display = "block";
+        
+                    }
+                })
+        
+        
+                };
+        
+                button.addEventListener('click', function () {
+                    var file = fileChooser.files[0];
+                    if (file) {
+                        
+                        //Object key will be facebook-USERID#/FILE_NAME
+                        var objKey = 'facebook-' + fbUserId + '/' + file.name;
+                        var params = {
+                            Key: objKey,
+                            ContentType: file.type,
+                            Body: file,
+                            ACL: 'public-read'
+                        };
+                        bucket.putObject(params, function (err, data) {
+                            if (err) {
+        
+                                console.log("Your file did not load");
+                            } else {
+        
+                                console.log("Your file was loaded...");
+        
+        
+                                params = {
+                                    TableName: 'mp8Table',
+                                    Key: {
+                                        itemID: fullName,
+                                        sortKey: 'new'
+        
+                                    },
+                                    ExpressionAttributeNames: {
+                                        '#a': 'imgurl'
+                                    },
+                                    ExpressionAttributeValues: {
+                                        ':v': objKey
+                                    },
+                                    UpdateExpression: 'set #a = :v',
+                                };
+        
+                                setTimeout(function () { 
+        
+                                    docClient.update(params, function (err, data) {
+                                        if (err) console.log(err);
+                                        else console.log(data);
+                                    })
+        
+                                }, 1500);
+
+                                document.getElementById("addimg").style.display = "none";
+                                document.getElementById("profileLink").style.display = "block";
+                                document.getElementById("profileLink").innerHTML += "<a href='https://s3-us-west-2.amazonaws.com/cis311johnnyfirstbucket/MP+8/profilePage.html'>View your profile</a>";
+        
+        
+                            }
+                        });
+                    } else {
+                        
+                        console.log("No file to load...");
+                    }
+                }, false);
+        
+                window.fbAsyncInit = function () {
+                    FB.init({ appId: appId });
+        
+        
+        
+                    FB.getLoginStatus(function (response) {
+                        if (response.authResponse) {
+                            AWS.config.credentials = new AWS.WebIdentityCredentials({ //WIF
+                                RoleArn: roleArn,
+                                ProviderId: 'graph.facebook.com',
+                                WebIdentityToken: response.authResponse.accessToken
+                            });
+        
+                            fbUserId = response.authResponse.userID;
+                            username = response.authResponse.name;
+                            AWS.config.region = 'us-west-2'; //VERIFY YOUR S3 BUCKET REGION
+                            
+                            bucket = new AWS.S3({
+                                params: {
+                                    Bucket: bucketName
+                                }
+                            });
+        
+                            bucket.config.credentials = new AWS.WebIdentityCredentials({ //WIF
+                                ProviderId: 'graph.facebook.com',
+                                RoleArn: roleArn,
+                                WebIdentityToken: response.authResponse.accessToken
+                            });
+        
+                        }
+                        else {
+                            console.log("Issue logging in");
+                        }
+        
+                        // Load the FB JS SDK asynchronously
+                        (function (d, s, id) {
+                            var js, fjs = d.getElementsByTagName(s)[0];
+                            if (d.getElementById(id)) { return; }
+                            js = d.createElement(s); js.id = id;
+                            js.src = "https://connect.facebook.net/en_US/all.js";
+                            fjs.parentNode.insertBefore(js, fjs);
+                        }(document, 'script', 'facebook-jssdk'));
+                    })
+        
+        
+                    var url = window.location.href;
+                    console.log("url = " + url);
+        
+                    var x = breakUpURLParameters(url);
+                    console.log(x.search);
+                    console.log("1  = " + x.search.name); //please refer to http://www.w3schools.com/jsref/jsref_map.asp for example code
+                    document.getElementById("fullName").value = x.search.name + " " + x.search.last;
+                    document.getElementById("email").value = x.search.email;
+                }
+            </script>
+        
+        
+        
+            
+        </body>
+        
+        </html>
+        
